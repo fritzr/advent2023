@@ -15,7 +15,7 @@ func parseNumber(s string, begin int) (int, int) {
 	if end < 0 {
 		end = len(s)
 	} else {
-		end += begin + 1
+		end += begin
 	}
 	num, _ := strconv.Atoi(s[begin:end])
 	return num, end
@@ -36,6 +36,10 @@ func (s Span) Overlaps(t Span) bool {
 	return !(t[1] <= s[0] || t[0] >= s[1])
 }
 
+func (s Span) String() string {
+	return fmt.Sprintf("[%d,%d)", s[0], s[1])
+}
+
 type gridInfo struct {
 	value int
 	span  Span
@@ -49,6 +53,10 @@ func (i gridInfo) IsGear() bool {
 	return i.value == -int('*')
 }
 
+func (i gridInfo) Symbol() byte {
+	return byte(-i.value)
+}
+
 func (i gridInfo) Value() int {
 	if i.value < 0 {
 		return 0
@@ -58,6 +66,16 @@ func (i gridInfo) Value() int {
 
 func (i gridInfo) Span() Span {
 	return i.span
+}
+
+func (i gridInfo) String() string {
+	var valueStr string
+	if i.IsSymbol() {
+		valueStr = fmt.Sprintf("'%c'", i.Symbol())
+	} else {
+		valueStr = fmt.Sprintf("%d", i.Value())
+	}
+	return fmt.Sprintf("%s=%s", i.span.String(), valueStr)
 }
 
 type SparseGrid struct {
@@ -72,14 +90,18 @@ func (g SparseGrid) bisectRow(rowIndex int, colIndex int) int {
 	}
 	row := g.grid[rowIndex]
 	return sort.Search(len(row), func(infoIndex int) bool {
-		return colIndex >= row[infoIndex].span[0]
+		return row[infoIndex].span.Contains(colIndex) || row[infoIndex].span[0] > colIndex
 	})
 }
 
 // visitRow visits info in a row overlapping columns until visit returns false
 func (g SparseGrid) visitRow(rowIndex int, colSpan Span, visit func(*gridInfo) bool) {
+	if rowIndex < 0 || rowIndex >= len(g.grid) {
+		return
+	}
 	row := g.grid[rowIndex]
 	for infoIndex := g.bisectRow(rowIndex, colSpan[0]); infoIndex < len(row) && row[infoIndex].span.Overlaps(colSpan); infoIndex++ {
+		// fmt.Printf("[%2d] ..  visit %s\n", rowIndex, row[infoIndex])
 		if !visit(&row[infoIndex]) {
 			break
 		}
@@ -88,10 +110,9 @@ func (g SparseGrid) visitRow(rowIndex int, colSpan Span, visit func(*gridInfo) b
 
 // visitBlock visits info overlapping a block until visit returns false.
 func (g SparseGrid) visitBlock(rowSpan Span, colSpan Span, visit func(int, *gridInfo) bool) {
+	// fmt.Printf("VISIT BLOCK %s x %s\n", rowSpan, colSpan)
 	for rowIndex := rowSpan[0]; rowIndex < rowSpan[1]; rowIndex++ {
-		if rowIndex < 0 || rowIndex > len(g.grid) {
-			g.visitRow(rowIndex, colSpan, func(info *gridInfo) bool { return visit(rowIndex, info) })
-		}
+		g.visitRow(rowIndex, colSpan, func(info *gridInfo) bool { return visit(rowIndex, info) })
 	}
 }
 
@@ -101,7 +122,8 @@ func (g SparseGrid) visitAdjacent(rowSpan Span, colSpan Span, visit func(int, *g
 		Span{rowSpan[0] - 1, rowSpan[1] + 1},
 		Span{colSpan[0] - 1, colSpan[1] + 1},
 		func(rowIndex int, blockInfo *gridInfo) bool {
-			if rowSpan.Contains(rowIndex) || colSpan.Overlaps(blockInfo.span) {
+			if rowSpan.Contains(rowIndex) && colSpan.Overlaps(blockInfo.span) {
+				// fmt.Printf("[%2d] ... skip overlapping %s\n", rowIndex, blockInfo)
 				return true // continue
 			}
 			return visit(rowIndex, blockInfo)
@@ -137,13 +159,13 @@ func (g SparseGrid) GearSum() int {
 				continue
 			}
 			adjacentCount := 0
-			ratio := 0
+			ratio := 1
 			g.visitAdjacent(
 				Span{rowIndex, rowIndex + 1},
 				gear.span,
 				func(_ int, adjacent *gridInfo) bool {
 					if !adjacent.IsSymbol() {
-						adjacentCount += 1
+						adjacentCount++
 						ratio *= adjacent.Value()
 					}
 					return adjacentCount < 3
@@ -169,15 +191,28 @@ func NewGrid(lines []string) *SparseGrid {
 		for col := 0; col < len(rowText); col++ {
 			if unicode.IsDigit(rune(rowText[col])) {
 				value, colEnd := parseNumber(rowText, col)
-				gridRow = append(gridRow, gridInfo{value, Span{col, colEnd}})
+				gridRow = append(gridRow, gridInfo{value: value, span: Span{col, colEnd}})
 				col = colEnd - 1 // to visit colEnd next, counteract col++
 			} else if rowText[col] != '.' {
-				gridRow = append(gridRow, gridInfo{0, Span{col, col + 1}})
+				gridRow = append(gridRow, gridInfo{value: -int(rowText[col]), span: Span{col, col + 1}})
 			}
 		}
 		g.grid = append(g.grid, gridRow)
 	}
 	return g
+}
+
+func (g SparseGrid) String() string {
+	s := strings.Builder{}
+	s.WriteString(fmt.Sprintf("grid %d x %d\n", len(g.grid), g.width))
+	for rowIndex, row := range g.grid {
+		s.WriteString(fmt.Sprintf("[%2d] ", rowIndex))
+		for _, info := range row {
+			s.WriteString(fmt.Sprintf("  %s", info.String()))
+		}
+		s.WriteByte('\n')
+	}
+	return s.String()
 }
 
 func main() {
@@ -186,6 +221,7 @@ func main() {
 		log.Fatalf("%s", err)
 	}
 	g := NewGrid(lines)
+	// fmt.Println(g.String())
 	fmt.Println(g.PartNumberSum())
 	fmt.Println(g.GearSum())
 }
