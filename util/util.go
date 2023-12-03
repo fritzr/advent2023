@@ -2,14 +2,24 @@ package util
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"io"
 	"os"
 	"path"
 )
 
+var inputName = flag.String("name", "input.txt", "input filename (relative to day directory)")
+var inputPath = flag.String("path", "", "explicit input path (overrides -name)")
+
 func InputPath(day int) string {
-	return path.Join(fmt.Sprintf("cmd/day%02d/input.txt", day))
+	if !flag.Parsed() {
+		flag.Parse()
+	}
+	if inputPath != nil && *inputPath != "" {
+		return *inputPath
+	}
+	return fmt.Sprintf(path.Join("cmd", "day%02d", "%s"), day, *inputName)
 }
 
 func OpenInput(day int) (*os.File, error) {
