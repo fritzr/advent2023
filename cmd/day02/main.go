@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+  "strconv"
 )
 
 func main() {
@@ -15,16 +16,23 @@ func main() {
 	sum := 0
 NewGame:
 	for id, game := range lines {
-		_, game, _ = strings.Cut(game, ":")
+		_, game, _ = strings.Cut(game, ": ")
+    // fmt.Printf("game %3d: %s\n        ", id+1, game)
 		for _, round := range strings.Split(game, ";") {
 			for _, draw := range strings.Split(round, ", ") {
-				num, color, _ := strings.Cut(draw, " ")
-				num := strconv.Atoi(num)
+				fields := strings.Fields(draw)
+        numStr := fields[0]
+        color := fields[1]
+        num, _ := strconv.Atoi(numStr)
+        // fmt.Printf(" num=%d|color='%s'", num, color)
 				if num > limits[color] {
+          // fmt.Printf("\n     %3d: not scientifically possible (%2d/%2d %s)\n", id+1, num, limits[color], color)
 					continue NewGame
 				}
 			}
+      // fmt.Printf(";")
 		}
+    // fmt.Printf("\n     %3d: possible\n", id+1)
 		sum += id + 1
 	}
 	fmt.Println(sum)
