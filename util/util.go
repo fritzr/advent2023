@@ -1,8 +1,8 @@
 package util
 
 import (
-	"fmt"
 	"bufio"
+	"fmt"
 	"io"
 	"os"
 	"path"
@@ -18,10 +18,12 @@ func OpenInput(day int) (*os.File, error) {
 
 func ReadInput(day int) (string, error) {
 	f, err := OpenInput(day)
-	if err != nil { return "", err }
+	if err != nil {
+		return "", err
+	}
 	defer f.Close()
 	raw, err := io.ReadAll(f)
-	if (err == nil) {
+	if err == nil {
 		return string(raw), nil
 	}
 	return "", err
@@ -29,7 +31,9 @@ func ReadInput(day int) (string, error) {
 
 func ReadInputLines(day int) ([]string, error) {
 	f, err := OpenInput(day)
-	if err != nil { return nil, err }
+	if err != nil {
+		return nil, err
+	}
 	defer f.Close()
 	s := bufio.NewScanner(f)
 	lines := make([]string, 0, 128)

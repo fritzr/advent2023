@@ -8,6 +8,7 @@ import (
 )
 
 const digits = "0123456789"
+
 var digitWords = []string{
 	"zero", "0o",
 	"one", "o1e",
@@ -24,13 +25,17 @@ var digitWords = []string{
 func lineSum(line string) int {
 	d1 := strings.IndexAny(line, digits)
 	d2 := strings.LastIndexAny(line, digits)
-	if d1 < 0 { return 0 }
-	return 10 * int(line[d1] - '0') + int(line[d2] - '0')
+	if d1 < 0 {
+		return 0
+	}
+	return 10*int(line[d1]-'0') + int(line[d2]-'0')
 }
 
 func main() {
 	lines, err := util.ReadInputLines(1)
-	if err != nil { log.Fatalf("%s", err) }
+	if err != nil {
+		log.Fatalf("%s", err)
+	}
 
 	sum1 := 0
 	sum2 := 0
