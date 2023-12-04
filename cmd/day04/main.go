@@ -8,22 +8,32 @@ import (
   "log"
 )
 
-func parseNumbers(numberFields string) []int {
-  result := make([]int, 0)
+type Set[T comparable] map[T]bool
+
+func parseNumbers(numberFields string, f func(int)) {
   for _, field := range strings.Fields(numberFields) {
     value, _ := strconv.Atoi(field)
-    result = append(result, value)
+    f(value)
   }
+}
+
+func parseNumberList(numberFields string) []int {
+  result := make([]int, 0)
+  parseNumbers(numberFields, func(value int) { result = append(result, value) })
   return result
 }
 
-func countWins(winners []int, present []int) int {
+func parseNumberSet(numberFields string) Set[int] {
+  result := make(Set[int])
+  parseNumbers(numberFields, func(value int) { result[value] = true })
+  return result
+}
+
+func countWins(winners Set[int], numbers []int) int {
   count := 0
-  for _, winner := range winners {
-    for _, have := range present {
-      if winner == have {
-        count += 1
-      }
+  for _, number := range numbers {
+    if winners[number] {
+      count += 1
     }
   }
   return count
@@ -41,8 +51,8 @@ func main() {
   for gameIndex, line := range lines {
     _, numberSets, _ := strings.Cut(line, ": ")
     winningStr, presentStr, _ := strings.Cut(numberSets, "|")
-    winning := parseNumbers(winningStr)
-    present := parseNumbers(presentStr)
+    winning := parseNumberSet(winningStr)
+    present := parseNumberList(presentStr)
     wins := countWins(winning, present)
     if wins > 0 {
       score += 1 << (wins - 1)
@@ -50,7 +60,7 @@ func main() {
     thisCopies := gameCopies[gameIndex] + 1
     totalCopies += thisCopies
     for copyIndex := gameIndex + 1; copyIndex < len(gameCopies) && copyIndex <= gameIndex + wins; copyIndex++ {
-      // fmt.Printf("won %d copies of %d\n", thisCopies, copyIndex + 1)
+      // fmt.Printf("after game %d, total = %d, copies = %v\n", gameIndex + 1, totalCopies, gameCopies[gameIndex:])
       gameCopies[copyIndex] += thisCopies
     }
   }
