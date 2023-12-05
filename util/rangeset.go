@@ -9,6 +9,10 @@ import (
 )
 
 type Span [2]int
+type spanValue[T any] struct {
+	span Span
+	value T
+}
 
 func (s Span) Contains(value int) bool {
 	return s[0] <= value && value < s[1]
@@ -23,7 +27,7 @@ func (s Span) String() string {
 }
 
 type RangeSet struct {
-	set []Span
+	set []spanValue
 }
 
 // bisectRow returns the index of the next gridInfo for a given column
@@ -33,10 +37,29 @@ func (s RangeSet) bisect(value int) int {
 	})
 }
 
-func (s RangeSet) Insert(span Span) {
+func (s RangeSet[T]) Add(span Span, value T) {
 	index := s.bisect(span[0])
-	if index == len(s.set) {
-		s.set = append(s.set, span)
+	s.set = append(s.set[:index], spanValue{span, value}, s.set[index:])
+}
+
+func (s RangeSet[T]) Get(key int) *T {
+	index := s.bisect(key)
+	if index < len(s.set) && s.set[index].span.Contains(key) {
+		return &s.set[index].value
 	}
-	s.set = append(s.set[:index], span, s.set[index:])
+	return nil
+}
+
+type RangeResult[T any] struct {
+	Span Span
+	Value *T
+}
+
+func (s RangeSet[T]) Intersect(span Span) []RangeResult[T] {
+	index := s.bisect(span[0])
+	results := make([]RangeResult[T], 0)
+	for index < len(s.set) && s.set[index].span.Overlaps(span) {
+		results = append(results, RangeResult[T]{s.set[index].span, &s.set[index].value})
+	}
+	return results
 }
