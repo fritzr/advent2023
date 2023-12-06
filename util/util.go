@@ -7,6 +7,8 @@ import (
 	"io"
 	"os"
 	"path"
+	"strconv"
+	"strings"
 )
 
 var inputName = flag.String("name", "input.txt", "input filename (relative to day directory)")
@@ -51,4 +53,25 @@ func ReadInputLines(day int) ([]string, error) {
 		lines = append(lines, s.Text())
 	}
 	return lines, s.Err()
+}
+
+type Set[T comparable] map[T]bool
+
+func ParseNumbers(numberFields string, f func(int)) {
+	for _, field := range strings.Fields(numberFields) {
+		value, _ := strconv.Atoi(field)
+		f(value)
+	}
+}
+
+func ParseNumberList(numberFields string) []int {
+	result := make([]int, 0)
+	ParseNumbers(numberFields, func(value int) { result = append(result, value) })
+	return result
+}
+
+func ParseNumberSet(numberFields string) Set[int] {
+	result := make(Set[int])
+	ParseNumbers(numberFields, func(value int) { result[value] = true })
+	return result
 }
