@@ -52,7 +52,7 @@ func mapMinValue(seeds []int, maps []util.RangeSet[int]) int {
 func mapMinRange(seeds []int, maps []util.RangeSet[int]) int {
 	seedSet := util.RangeSet[int]{}
 	for index := 0; index < len(seeds); index += 2 {
-		seedSet.Add(util.Span{seeds[index], seeds[index+1]}, 0)
+		seedSet.Add(util.Span{seeds[index], seeds[index] + seeds[index+1]}, 0)
 	}
 	for _, valueMap := range maps {
 		seedSet = valueMap.Intersect(seedSet, func(_, _, _ util.Span, delta1, delta2 *int) int {
