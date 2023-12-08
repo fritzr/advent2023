@@ -61,12 +61,12 @@ func mapMinRange(seeds []int, maps []util.RangeSet[int]) int {
 	coverSet := util.RangeSet[int]{}
 	for _, valueMap := range maps {
 		newCoverSet := coverSet.Cover(valueMap, combineValues)
-		fmt.Printf("cover(\n     %s,\n     %s\n  => %s\n)\n", coverSet, valueMap, newCoverSet)
+		// fmt.Printf("cover(\n     %s,\n     %s\n  => %s\n)\n", coverSet, valueMap, newCoverSet)
 		coverSet = newCoverSet
 	}
 	minValue := 0
 	minSet := seedSet.Intersect(coverSet, combineValues)
-	fmt.Printf("intersect(\n     %s,\n     %s\n  => %s\n)\n", coverSet, seedSet, minSet)
+	// fmt.Printf("intersect(\n     %s,\n     %s\n  => %s\n)\n", coverSet, seedSet, minSet)
 	minSet.Do(func(s util.Span, delta *int) bool {
 		value := s[0] + *delta
 		if s[0] == minSet.Min() || value < minValue {
