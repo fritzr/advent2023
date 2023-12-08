@@ -37,16 +37,20 @@ func mapValue(valueMap util.RangeSet[int], value int) int {
 }
 
 func mapMinValue(seeds []int, maps []util.RangeSet[int]) int {
-	minValue := -1
-	for _, value := range seeds {
+	var minValue *int
+	for index, value := range seeds {
 		for _, valueMap := range maps {
 			value = mapValue(valueMap, value)
 		}
-		if minValue < 0 || value < minValue {
-			minValue = value
+		if minValue == nil || value < *minValue {
+			minValue = &seeds[index]
 		}
 	}
-	return minValue
+	return *minValue
+}
+
+func combineValues(delta1, delta2 *int) int {
+	return *delta1 + *delta2
 }
 
 func mapMinRange(seeds []int, maps []util.RangeSet[int]) int {
@@ -54,16 +58,18 @@ func mapMinRange(seeds []int, maps []util.RangeSet[int]) int {
 	for index := 0; index < len(seeds); index += 2 {
 		seedSet.Add(util.Span{seeds[index], seeds[index] + seeds[index+1]}, 0)
 	}
+	coverSet := util.RangeSet[int]{}
 	for _, valueMap := range maps {
-		seedSet = valueMap.Intersect(seedSet, func(_, _, _ util.Span, delta1, delta2 *int) int {
-			// TODO
-			return *delta1 + *delta2
-		})
+		newCoverSet := coverSet.Cover(valueMap, combineValues)
+		fmt.Printf("cover(\n     %s,\n     %s\n  => %s\n)\n", coverSet, valueMap, newCoverSet)
+		coverSet = newCoverSet
 	}
-	minValue := -1
-	seedSet.Do(func(s util.Span, delta *int) bool {
+	minValue := 0
+	minSet := seedSet.Intersect(coverSet, combineValues)
+	fmt.Printf("intersect(\n     %s,\n     %s\n  => %s\n)\n", coverSet, seedSet, minSet)
+	minSet.Do(func(s util.Span, delta *int) bool {
 		value := s[0] + *delta
-		if minValue < 0 || value < minValue {
+		if s[0] == minSet.Min() || value < minValue {
 			minValue = value
 		}
 		return true

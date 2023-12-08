@@ -2,6 +2,7 @@ package util
 
 import (
 	"bufio"
+	"cmp"
 	"flag"
 	"fmt"
 	"io"
@@ -74,4 +75,37 @@ func ParseNumberSet(numberFields string) Set[int] {
 	result := make(Set[int])
 	ParseNumbers(numberFields, func(value int) { result[value] = true })
 	return result
+}
+
+func Min[T cmp.Ordered](x, y T) T {
+	if x < y {
+		return x
+	}
+	return y
+}
+
+func FindMin[T cmp.Ordered](slice []T) *T {
+	if len(slice) == 0 {
+		return nil
+	}
+	min := &slice[0]
+	for index, _ := range slice {
+		if slice[index] < *min {
+			min = &slice[index]
+		}
+	}
+	return min
+}
+
+func FindMax[T cmp.Ordered](slice []T) *T {
+	if len(slice) == 0 {
+		return nil
+	}
+	max := &slice[0]
+	for index, _ := range slice {
+		if slice[index] > *max {
+			max = &slice[index]
+		}
+	}
+	return max
 }
