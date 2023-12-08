@@ -46,42 +46,50 @@ type RangeSet[T any] struct {
 }
 
 // bisectRow returns the index of the next gridInfo for a given column
-func (s RangeSet[T]) bisect(value int) int {
-	return sort.Search(len(s.set), func(index int) bool {
-		return s.set[index].span.Contains(value) || s.set[index].span[0] > value
+func bisect[T any](set []spanValue[T], value int) int {
+	return sort.Search(len(set), func(index int) bool {
+		return set[index].span.Contains(value) || set[index].span[0] > value
 	})
 }
 
-func (s *RangeSet[T]) Add(span Span, value T) *T {
-	index := s.bisect(span[0])
-	if index == len(s.set) {
-		s.set = append(s.set, spanValue[T]{span, value})
+func add[T any](set *[]spanValue[T], span Span, value T) *T {
+	index := bisect(*set, span[0])
+	if index == len(*set) {
+		*set = append(*set, spanValue[T]{span, value})
 	} else {
-		s.set = append(s.set[:index+1], s.set[index:]...)
-		s.set[index] = spanValue[T]{span, value}
+		*set = append((*set)[:index+1], (*set)[index:]...)
+		(*set)[index] = spanValue[T]{span, value}
 	}
-	return &s.set[index].value
+	return &(*set)[index].value
 }
 
-func (s *RangeSet[T]) extend(span Span, value T) *spanValue[T] {
-	s.set = append(s.set, spanValue[T]{span, value})
-	return &s.set[len(s.set)-1]
+func (s *RangeSet[T]) Add(span Span, value T) *T {
+	return add(&s.set, span, value)
+}
+
+func extend[T any](s *[]spanValue[T], span Span, value T) *spanValue[T] {
+	*s = append(*s, spanValue[T]{span, value})
+	return &(*s)[len(*s)-1]
 }
 
 func (s RangeSet[T]) GetRange(key int) *RangeResult[T] {
-	index := s.bisect(key)
+	index := bisect(s.set, key)
 	if index < len(s.set) && s.set[index].span.Contains(key) {
 		return &RangeResult[T]{s.set[index].span, &s.set[index].value}
 	}
 	return nil
 }
 
-func (s RangeSet[T]) Get(key int) *T {
-	index := s.bisect(key)
-	if index < len(s.set) && s.set[index].span.Contains(key) {
-		return &s.set[index].value
+func get[T any](set []spanValue[T], key int) *T {
+	index := bisect(set, key)
+	if index < len(set) && set[index].span.Contains(key) {
+		return &set[index].value
 	}
 	return nil
+}
+
+func (s RangeSet[T]) Get(key int) *T {
+	return get(s.set, key)
 }
 
 type RangeResult[T any] struct {
@@ -96,7 +104,7 @@ func (s RangeSet[T]) DoIntersect(t RangeSet[T], do func(ss, ts, ix Span, svalue,
 	if len(s.set) == 0 || len(t.set) == 0 {
 		return
 	}
-	sIndex := s.bisect(t.set[0].span[0])
+	sIndex := bisect(s.set, t.set[0].span[0])
 	tIndex := 0
 	for sIndex < len(s.set) && tIndex < len(t.set) {
 		sinfo := &s.set[sIndex]
@@ -120,19 +128,6 @@ func (s RangeSet[T]) DoIntersect(t RangeSet[T], do func(ss, ts, ix Span, svalue,
 
 type CombineFunc[T any] func(svalue, tvalue *T) T
 
-type spanRef[T any] struct {
-	span  Span
-	value *T
-	index *int
-}
-
-func orderLeft[T any](s, t spanRef[T]) (spanRef[T], spanRef[T]) {
-	if s.span[0] < t.span[0] {
-		return s, t
-	}
-	return t, s
-}
-
 // Cover computes the cover set of two range sets.
 //
 // This is every range in the union of the two sets, where the
@@ -144,13 +139,12 @@ func orderLeft[T any](s, t spanRef[T]) (spanRef[T], spanRef[T]) {
 //	           ______
 //	                ______
 //	                      ______
-func (s RangeSet[T]) Cover(t RangeSet[T], combine CombineFunc[T]) RangeSet[T] {
-	cover := RangeSet[T]{}
+func (s RangeSet[T]) DoCover(t RangeSet[T], combine CombineFunc[T], visit func(Span, T) bool) {
 	if len(s.set) == 0 {
-		return t
+		return
 	}
 	if len(t.set) == 0 {
-		return s
+		return
 	}
 	sIndex := 0
 	tIndex := 0
@@ -162,10 +156,11 @@ func (s RangeSet[T]) Cover(t RangeSet[T], combine CombineFunc[T]) RangeSet[T] {
 	//   R = second = span with greatest lower bound
 	// min{S.max, T.max} when comparing spans S (from s.set) and T (from t.set).
 	for sIndex < len(s.set) && tIndex < len(t.set) {
-		first, second := orderLeft[T](
-			spanRef[T]{s.set[sIndex].span, &s.set[sIndex].value, &sIndex},
-			spanRef[T]{t.set[tIndex].span, &t.set[tIndex].value, &tIndex},
-		)
+		first := &s.set[sIndex]
+		second := &t.set[tIndex]
+		if second.span[0] < first.span[0] {
+			second, first = first, second
+		}
 
 		// skip gaps
 		if sweep < first.span[0] {
@@ -176,27 +171,24 @@ func (s RangeSet[T]) Cover(t RangeSet[T], combine CombineFunc[T]) RangeSet[T] {
 		if second.span[0] < first.span[1] {
 			// add [S,Rl] if not empty
 			if sweep != second.span[0] {
-				cover.extend(Span{sweep, second.span[0]}, *first.value)
+				visit(Span{sweep, second.span[0]}, first.value)
 			}
 			// add [Rl, min{Lr,Rr}]; advance span with min{Lr,Rr}
 			sweep = first.span[1]
-			index := first.index
 			if second.span[1] < sweep {
 				sweep = second.span[1]
-				index = second.index
 			}
-			cover.extend(Span{second.span[0], sweep}, combine(first.value, second.value))
-			*index++
+			visit(Span{second.span[0], sweep}, combine(&first.value, &second.value))
 		} else {
 			// no intersection: add [S,Lr]
-			cover.extend(Span{sweep, first.span[1]}, *first.value)
+			visit(Span{sweep, first.span[1]}, first.value)
 			sweep = first.span[1]
-			// advance span with min{Lr,Rr}
-			if second.span[1] < first.span[1] {
-				*second.index++
-			} else {
-				*first.index++
-			}
+		}
+		// advance span with min{Lr,Rr}
+		if s.set[sIndex].span[1] < t.set[tIndex].span[1] {
+			sIndex++
+		} else {
+			tIndex++
 		}
 	}
 	for _, set := range [][]spanValue[T]{s.set[sIndex:], t.set[tIndex:]} {
@@ -208,11 +200,19 @@ func (s RangeSet[T]) Cover(t RangeSet[T], combine CombineFunc[T]) RangeSet[T] {
 		if sweep <= info.span[0] {
 			sweep = info.span[0]
 		}
-		cover.extend(Span{sweep, info.span[1]}, info.value)
+		visit(Span{sweep, info.span[1]}, info.value)
 		for index := 1; index < len(set); index++ {
-			cover.extend(set[index].span, set[index].value)
+			visit(set[index].span, set[index].value)
 		}
 	}
+}
+
+func (s RangeSet[T]) Cover(t RangeSet[T], combine CombineFunc[T]) RangeSet[T] {
+	cover := RangeSet[T]{}
+	s.DoCover(t, combine, func(s Span, value T) bool {
+		extend(&cover.set, s, value)
+		return true
+	})
 	return cover
 }
 
@@ -276,4 +276,90 @@ func (s RangeSet[T]) String() string {
 	}
 	str += " }"
 	return str
+}
+
+type RangeMap RangeSet[int]
+
+func sumValues(delta1, delta2 *int) int {
+	return *delta1 + *delta2
+}
+
+// Combine range-maps.
+func (s RangeMap) CombineMap(t RangeMap) RangeMap {
+	result := RangeMap{}
+	if len(s.set) == 0 {
+		return t
+	}
+	if len(t.set) == 0 {
+		return s
+	}
+	sweep := Min(RangeSet[int](s).Min(), RangeSet[int](t).Min())
+	sIndex := 0
+	tIndex := 0
+	for sIndex < len(s.set) && tIndex < len(t.set) {
+		sspan := s.set[sIndex].span
+		if sweep > sspan[0] {
+			sspan[0] = sweep
+		}
+		tspan := t.set[tIndex].span
+		if sweep > tspan[0] {
+			tspan[0] = sweep
+		}
+
+		if tspan[0] < sspan[0] {
+			sweep = Min(tspan[1], sspan[0])
+			extend(&result.set, Span{tspan[0], sweep}, t.set[tIndex].value)
+		}
+
+		// Map contiguous subset of domain
+		if sspan.Contains(sweep) {
+			svalue := s.set[sIndex].value
+			mapped := Span{sweep + svalue, sweep + svalue + sspan[1] - sweep}
+			tIndex = bisect(t.set, mapped[0])
+			if tIndex != len(t.set) {
+				tinfo := &t.set[tIndex]
+				if mapped[0] < tinfo.span[0] {
+					mapped[1] = tinfo.span[0]
+				} else if tinfo.span[1] < mapped[1] {
+					mapped[1] = tinfo.span[1]
+				}
+				delta := mapped[1] - mapped[0]
+				extend(&result.set, Span{sweep, sweep + delta}, svalue+tinfo.value)
+				sweep += delta
+			} else {
+				extend(&result.set, Span{sweep, sspan[1]}, svalue)
+				sweep = sspan[1]
+			}
+		}
+
+		if sweep >= sspan[1] {
+			sIndex++
+		}
+		if sweep >= tspan[1] {
+			tIndex++
+		}
+	}
+	return result
+}
+
+func (s *RangeMap) Add(span Span, value int) {
+	add(&s.set, span, value)
+}
+
+func (s RangeMap) Reduce(maps []RangeMap) RangeMap {
+	result := s
+	for _, rangeMap := range maps[1:] {
+		newMap := result.CombineMap(rangeMap)
+		// fmt.Printf("map(\n     %s,\n     %s\n  => %s\n)\n", result, rangeMap, newMap)
+		result = newMap
+	}
+	return s
+}
+
+func (s RangeMap) Map(value int) int {
+	index := bisect(s.set, value)
+	if index == len(s.set) {
+		return value
+	}
+	return value + s.set[index].value
 }
