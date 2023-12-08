@@ -280,10 +280,6 @@ func (s RangeSet[T]) String() string {
 
 type RangeMap RangeSet[int]
 
-func sumValues(delta1, delta2 *int) int {
-	return *delta1 + *delta2
-}
-
 // Combine range-maps.
 func (s RangeMap) CombineMap(t RangeMap) RangeMap {
 	result := RangeMap{}
@@ -315,9 +311,9 @@ func (s RangeMap) CombineMap(t RangeMap) RangeMap {
 		if sspan.Contains(sweep) {
 			svalue := s.set[sIndex].value
 			mapped := Span{sweep + svalue, sweep + svalue + sspan[1] - sweep}
-			tIndex = bisect(t.set, mapped[0])
-			if tIndex != len(t.set) {
-				tinfo := &t.set[tIndex]
+			tMapIndex := bisect(t.set, mapped[0])
+			if tMapIndex != len(t.set) {
+				tinfo := &t.set[tMapIndex]
 				if mapped[0] < tinfo.span[0] {
 					mapped[1] = tinfo.span[0]
 				} else if tinfo.span[1] < mapped[1] {
@@ -339,6 +335,12 @@ func (s RangeMap) CombineMap(t RangeMap) RangeMap {
 			tIndex++
 		}
 	}
+	for ; sIndex < len(s.set); sIndex++ {
+		extend(&result.set, s.set[sIndex].span, s.set[sIndex].value)
+	}
+	for ; tIndex < len(t.set); tIndex++ {
+		extend(&result.set, t.set[tIndex].span, t.set[tIndex].value)
+	}
 	return result
 }
 
@@ -348,18 +350,22 @@ func (s *RangeMap) Add(span Span, value int) {
 
 func (s RangeMap) Reduce(maps []RangeMap) RangeMap {
 	result := s
-	for _, rangeMap := range maps[1:] {
+	for _, rangeMap := range maps {
 		newMap := result.CombineMap(rangeMap)
 		// fmt.Printf("map(\n     %s,\n     %s\n  => %s\n)\n", result, rangeMap, newMap)
 		result = newMap
 	}
-	return s
+	return result
 }
 
 func (s RangeMap) Map(value int) int {
 	index := bisect(s.set, value)
-	if index == len(s.set) {
+	if index == len(s.set) || value < s.set[index].span[0] {
 		return value
 	}
 	return value + s.set[index].value
+}
+
+func (s RangeMap) String() string {
+	return RangeSet[int](s).String()
 }

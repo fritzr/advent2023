@@ -89,7 +89,7 @@ func FindMin[T cmp.Ordered](slice []T) *T {
 		return nil
 	}
 	min := &slice[0]
-	for index, _ := range slice {
+	for index := range slice {
 		if slice[index] < *min {
 			min = &slice[index]
 		}
@@ -102,7 +102,7 @@ func FindMax[T cmp.Ordered](slice []T) *T {
 		return nil
 	}
 	max := &slice[0]
-	for index, _ := range slice {
+	for index := range slice {
 		if slice[index] > *max {
 			max = &slice[index]
 		}
