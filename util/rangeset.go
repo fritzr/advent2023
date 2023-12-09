@@ -310,17 +310,24 @@ func (s RangeMap) CombineMap(t RangeMap) RangeMap {
 		// Map contiguous subset of domain
 		if sspan.Contains(sweep) {
 			svalue := s.set[sIndex].value
-			mapped := Span{sweep + svalue, sweep + svalue + sspan[1] - sweep}
+			mapped := Span{sweep + svalue, svalue + sspan[1]}
 			tMapIndex := bisect(t.set, mapped[0])
 			if tMapIndex != len(t.set) {
 				tinfo := &t.set[tMapIndex]
+				value := svalue + tinfo.value
 				if mapped[0] < tinfo.span[0] {
-					mapped[1] = tinfo.span[0]
+					if tinfo.span[0] < mapped[1] {
+						extend(&result.set, Span{sweep, sweep + tinfo.span[0] - mapped[0]}, svalue)
+						sweep += tinfo.span[0] - mapped[0]
+						mapped[0] = tinfo.span[0]
+					} else {
+						value = svalue
+					}
 				} else if tinfo.span[1] < mapped[1] {
 					mapped[1] = tinfo.span[1]
 				}
 				delta := mapped[1] - mapped[0]
-				extend(&result.set, Span{sweep, sweep + delta}, svalue+tinfo.value)
+				extend(&result.set, Span{sweep, sweep + delta}, value)
 				sweep += delta
 			} else {
 				extend(&result.set, Span{sweep, sspan[1]}, svalue)
@@ -352,7 +359,7 @@ func (s RangeMap) Reduce(maps []RangeMap) RangeMap {
 	result := s
 	for _, rangeMap := range maps {
 		newMap := result.CombineMap(rangeMap)
-		// fmt.Printf("map(\n     %s,\n     %s\n  => %s\n)\n", result, rangeMap, newMap)
+		fmt.Printf("map(\n     %s,\n     %s\n  => %s\n)\n", result, rangeMap, newMap)
 		result = newMap
 	}
 	return result
@@ -366,6 +373,24 @@ func (s RangeMap) Map(value int) int {
 	return value + s.set[index].value
 }
 
+func (s RangeMap) Maps(value int) bool {
+	index := bisect(s.set, value)
+	if index == len(s.set) || value < s.set[index].span[0] {
+		return false
+	}
+	return true
+}
+
 func (s RangeMap) String() string {
-	return RangeSet[int](s).String()
+	str := "{"
+	for index, spanValue := range s.set {
+		str += fmt.Sprintf(" [%d]=%s%+d=>%s", index, spanValue.span, spanValue.value,
+			Span{spanValue.span[0] + spanValue.value, spanValue.span[1] + spanValue.value})
+	}
+	str += " }"
+	return str
+}
+
+func (s RangeMap) Count() int {
+	return len(s.set)
 }
