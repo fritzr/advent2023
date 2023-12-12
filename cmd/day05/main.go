@@ -39,46 +39,17 @@ func mapMinValue(seeds []int, seedMap util.RangeMap) int {
 	return minValue
 }
 
-func dumpMap(seeds []int, seedMap util.RangeMap) []int {
-	fmt.Printf("test:\n")
-	for _, seed := range seeds {
-		value := seedMap.Map(seed)
-		fmt.Printf("  %d=>%d", seed, value)
-	}
-	fmt.Printf("\n")
-	return seeds
-}
-
-func Reduce(seeds []int, maps []util.RangeMap) util.RangeMap {
-	result := maps[0]
-	seeds = dumpMap(seeds, result)
-	for _, rangeMap := range maps[1:] {
-		fmt.Printf("map(\n     %s,\n     %s\n", result, rangeMap)
-		newMap := result.CombineMap(rangeMap)
-		fmt.Printf("  => %s\n)\n", newMap)
-		seeds = dumpMap(seeds, newMap)
-		result = newMap
-	}
-	return result
-}
-
 func mapMinRange(seeds []int, seedMap util.RangeMap) int {
 	seedSet := util.RangeMap{}
 	for index := 0; index < len(seeds); index += 2 {
 		seedSet.Add(util.Span{seeds[index], seeds[index] + seeds[index+1]}, 0)
 	}
-	fmt.Println("seeds:")
-	dumpMap(seeds, seedSet)
-	seedMap = seedSet.CombineMap(seedMap)
-	minValue := 0
-	index := 0
+	seedMap = seedSet.CombineMap(seedMap, false)
+	minValue := util.RangeSet[int](seedMap).Min() + *util.RangeSet[int](seedMap).MinValue()
 	util.RangeSet[int](seedMap).Do(func(s util.Span, delta *int) bool {
-		value := s[0] + *delta
-		fmt.Printf("  %s,%+d => %d\n", s, *delta, value)
-		if index == 0 || (seedSet.Maps(s[0]) && value < minValue) {
+		if value := s[0] + *delta; value < minValue {
 			minValue = value
 		}
-		index++
 		return true
 	})
 	return minValue
@@ -94,7 +65,7 @@ func main() {
 	seeds := util.ParseNumberList(seedLine)
 	maps := parseMaps(lines[2:])
 
-	seedMap := Reduce(seeds, maps)
+	seedMap := maps[0].Reduce(maps[1:])
 	fmt.Println(mapMinValue(seeds, seedMap))
 	fmt.Println(mapMinRange(seeds, seedMap))
 }

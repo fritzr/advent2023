@@ -281,7 +281,7 @@ func (s RangeSet[T]) String() string {
 type RangeMap RangeSet[int]
 
 // Combine range-maps.
-func (s RangeMap) CombineMap(t RangeMap) RangeMap {
+func (s RangeMap) CombineMap(t RangeMap, mergeUnmapped bool) RangeMap {
 	result := RangeMap{}
 	if len(s.set) == 0 {
 		return t
@@ -289,22 +289,28 @@ func (s RangeMap) CombineMap(t RangeMap) RangeMap {
 	if len(t.set) == 0 {
 		return s
 	}
-	sweep := Min(RangeSet[int](s).Min(), RangeSet[int](t).Min())
+	sweep := RangeSet[int](s).Min()
+	if tMin := RangeSet[int](t).Min(); mergeUnmapped && tMin < sweep {
+		sweep = tMin
+	}
 	sIndex := 0
 	tIndex := 0
-	for sIndex < len(s.set) && tIndex < len(t.set) {
+	for sIndex < len(s.set) {
 		sspan := s.set[sIndex].span
 		if sweep > sspan[0] {
 			sspan[0] = sweep
 		}
-		tspan := t.set[tIndex].span
-		if sweep > tspan[0] {
-			tspan[0] = sweep
-		}
+		var tspan Span
+		if mergeUnmapped && tIndex < len(t.set) {
+			tspan = t.set[tIndex].span
+			if sweep > tspan[0] {
+				tspan[0] = sweep
+			}
 
-		if tspan[0] < sspan[0] {
-			sweep = Min(tspan[1], sspan[0])
-			extend(&result.set, Span{tspan[0], sweep}, t.set[tIndex].value)
+			if tspan[0] < sspan[0] {
+				sweep = Min(tspan[1], sspan[0])
+				extend(&result.set, Span{tspan[0], sweep}, t.set[tIndex].value)
+			}
 		}
 
 		// Map contiguous subset of domain
@@ -333,20 +339,28 @@ func (s RangeMap) CombineMap(t RangeMap) RangeMap {
 				extend(&result.set, Span{sweep, sspan[1]}, svalue)
 				sweep = sspan[1]
 			}
+		} else if !mergeUnmapped {
+			if sweep < sspan[0] {
+				sweep = sspan[0]
+			} else {
+				sweep = sspan[1]
+			}
 		}
 
 		if sweep >= sspan[1] {
 			sIndex++
 		}
-		if sweep >= tspan[1] {
+		if mergeUnmapped && sweep >= tspan[1] {
 			tIndex++
 		}
 	}
 	for ; sIndex < len(s.set); sIndex++ {
 		extend(&result.set, s.set[sIndex].span, s.set[sIndex].value)
 	}
-	for ; tIndex < len(t.set); tIndex++ {
-		extend(&result.set, t.set[tIndex].span, t.set[tIndex].value)
+	if mergeUnmapped {
+		for ; tIndex < len(t.set); tIndex++ {
+			extend(&result.set, t.set[tIndex].span, t.set[tIndex].value)
+		}
 	}
 	return result
 }
@@ -358,9 +372,7 @@ func (s *RangeMap) Add(span Span, value int) {
 func (s RangeMap) Reduce(maps []RangeMap) RangeMap {
 	result := s
 	for _, rangeMap := range maps {
-		newMap := result.CombineMap(rangeMap)
-		fmt.Printf("map(\n     %s,\n     %s\n  => %s\n)\n", result, rangeMap, newMap)
-		result = newMap
+		result = result.CombineMap(rangeMap, true)
 	}
 	return result
 }
