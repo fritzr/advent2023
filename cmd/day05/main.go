@@ -7,6 +7,8 @@ import (
 	"strings"
 )
 
+var biggest int
+
 func parseMaps(lines []string) []util.RangeMap {
 	maps := make([]util.RangeMap, 0)
 	var newMap *util.RangeMap
@@ -63,6 +65,7 @@ func main() {
 
 	_, seedLine, _ := strings.Cut(lines[0], ": ")
 	seeds := util.ParseNumberList(seedLine)
+	fmt.Printf("max %d\n", util.FindMax(seeds))
 	maps := parseMaps(lines[2:])
 
 	seedMap := maps[0].Reduce(maps[1:])
