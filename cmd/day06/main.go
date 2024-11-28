@@ -43,6 +43,26 @@ func parseRaces(lines []string) []Race {
 	return races
 }
 
+func parseOneRace(lines []string) Race {
+	race := Race{}
+	mode := ' '
+	for _, line := range lines {
+		index := 0
+		modeStr, valueStr, _ := strings.Cut(line, " ")
+		mode = rune(modeStr[0])
+		valueStr = strings.ReplaceAll(valueStr, " ", "")
+		value, _ := strconv.Atoi(valueStr)
+		if mode == 'T' {
+			race.Time = value
+		}
+		if mode == 'D' {
+			race.Record = value
+		}
+		index++
+	}
+	return race
+}
+
 func numRecordBreakers(race Race) int {
 	// solve distance (record) = t(T - t)
 	// T = race time, t = speed = time held
@@ -75,6 +95,7 @@ func main() {
 		part1 = part1 * numRecordBreakers(race)
 	}
 	fmt.Println(part1)
+	fmt.Println(numRecordBreakers(parseOneRace(lines)))
 }
 
 // vim: set ts=2 sw=2:
