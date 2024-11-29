@@ -9,7 +9,7 @@ import (
 func compareHands(t *testing.T, hand1 string, hand2 string, cmpExp int) {
 	h1 := Hand{hand1, 0}
 	h2 := Hand{hand2, 0}
-	cmp := h1.Compare(h2)
+	cmp := ranker.Compare(h1, h2)
 	if ((cmp < 0) != (cmpExp < 0)) || ((cmp > 0) != (cmpExp > 0)) {
 		t.Errorf("Compare(%s, %s) expected %d, got %d", hand1, hand2, cmpExp, cmp)
 	}
@@ -103,7 +103,7 @@ func TestSort(t *testing.T) {
 				},
 			}*/
 	} {
-		slices.SortFunc(test.hands, Hand.Compare)
+		slices.SortFunc(test.hands, ranker.Compare)
 
 		if !reflect.DeepEqual(test.hands, test.sorted) {
 			t.Errorf("hands not sorted as expected: %+v", test.hands)
@@ -113,18 +113,25 @@ func TestSort(t *testing.T) {
 
 func TestRanks(t *testing.T) {
 	type test struct {
-		hand string
-		rank HandRank
+		ranker HandRanker
+		hand   string
+		rank   HandRank
 	}
 	for _, test := range []test{
-		{"12345", RankHighCard},
-		{"12234", RankPair},
-		{"11233", RankTwoPair},
-		{"12223", RankTriple},
-		{"12222", RankQuad},
-		{"11111", RankPenta},
+		{ranker, "12345", RankHighCard},
+		{ranker, "12234", RankPair},
+		{ranker, "11233", RankTwoPair},
+		{ranker, "12223", RankTriple},
+		{ranker, "12222", RankQuad},
+		{ranker, "11111", RankPenta},
+		{jokerRanker, "12345", RankHighCard},
+		{jokerRanker, "12234", RankPair},
+		{jokerRanker, "1223J", RankTriple},
+		{jokerRanker, "J2233", RankFullHouse},
+		{jokerRanker, "JJJ12", RankQuad},
+		{jokerRanker, "11J1J", RankPenta},
 	} {
-		testRank := Hand{test.hand, 0}.Rank()
+		testRank := test.ranker.LookupRank(Hand{test.hand, 0})
 		if test.rank != testRank {
 			t.Errorf("hand %s: expected rank %d, got %d", test.hand, test.rank, testRank)
 		}

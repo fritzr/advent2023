@@ -20,11 +20,25 @@ func generateCardRanks(cardOrder string) map[rune]int {
 	return ranks
 }
 
-// lowest to highest face value
-const cardOrder = "23456789TJQKA"
+type HandRanker struct {
+	cardOrder     string
+	cardRanks     map[rune]int
+	handRankCache map[string]HandRank
+	jokerCard     rune
+}
 
-// map face value to numeric rank
-var cardRanks = generateCardRanks(cardOrder)
+func NewHandRanker(cardOrder string, joker rune) HandRanker {
+	return HandRanker{
+		cardOrder:     cardOrder,
+		cardRanks:     generateCardRanks(cardOrder),
+		handRankCache: map[string]HandRank{},
+		jokerCard:     joker,
+	}
+}
+
+// lowest to highest face value
+var ranker = NewHandRanker("23456789TJQKA", ' ')
+var jokerRanker = NewHandRanker("J23456789TQKA", 'J')
 
 type HandRank int
 
@@ -41,20 +55,27 @@ type Hand struct {
 	Bid  int
 }
 
-var rankCache = map[string]HandRank{}
-
-func (h Hand) Rank() HandRank {
-	cacheValue, ok := rankCache[h.Hand]
+func (r HandRanker) LookupRank(h Hand) HandRank {
+	cacheValue, ok := r.handRankCache[h.Hand]
 	if ok {
 		return cacheValue
 	}
+	rank := r.Rank(h)
+	r.handRankCache[h.Hand] = rank
+	return rank
+}
+
+func (r HandRanker) Rank(h Hand) HandRank {
 	counts := map[rune]int{}
-	for _, value := range h.Hand {
-		counts[value]++
+	for _, card := range h.Hand {
+		counts[card]++
 	}
 	highCount := 0
 	secondHighCount := 0
-	for _, count := range counts {
+	for card, count := range counts {
+		if card == r.jokerCard {
+			continue
+		}
 		if count >= highCount {
 			if highCount > secondHighCount {
 				secondHighCount = highCount
@@ -64,6 +85,7 @@ func (h Hand) Rank() HandRank {
 			secondHighCount = count
 		}
 	}
+	highCount += counts[r.jokerCard]
 	switch highCount {
 	case 2:
 		if secondHighCount == 2 {
@@ -86,9 +108,9 @@ func (h Hand) Rank() HandRank {
 	}
 }
 
-func (h1 Hand) Compare(h2 Hand) int {
-	rank1 := h1.Rank()
-	rank2 := h2.Rank()
+func (r HandRanker) Compare(h1, h2 Hand) int {
+	rank1 := r.LookupRank(h1)
+	rank2 := r.LookupRank(h2)
 	//fmt.Printf("Rank(%s) -> %v\n", h1.Hand, rank1)
 	//fmt.Printf("Rank(%s) -> %v\n", h2.Hand, rank2)
 	if rank1 != rank2 {
@@ -96,7 +118,7 @@ func (h1 Hand) Compare(h2 Hand) int {
 	}
 	index := 0
 	for index < len(h1.Hand) {
-		diff := cardRanks[rune(h1.Hand[index])] - cardRanks[rune(h2.Hand[index])]
+		diff := r.cardRanks[rune(h1.Hand[index])] - r.cardRanks[rune(h2.Hand[index])]
 		if diff != 0 {
 			//fmt.Printf("Compare(%s, %s) -> %d\n", h1.Hand, h2.Hand, diff)
 			return diff
@@ -132,10 +154,16 @@ func main() {
 	if err != nil {
 		log.Fatalf("parsing hands: %s", err)
 	}
-	slices.SortFunc(hands, Hand.Compare)
-	part1 := int64(0)
+	slices.SortFunc(hands, ranker.Compare)
+	part1 := 0
 	for index, hand := range hands {
-		part1 += int64(index+1) * int64(hand.Bid)
+		part1 += (index + 1) * hand.Bid
 	}
 	fmt.Println(part1)
+	slices.SortFunc(hands, jokerRanker.Compare)
+	part2 := 0
+	for index, hand := range hands {
+		part2 += (index + 1) * hand.Bid
+	}
+	fmt.Println(part2)
 }
